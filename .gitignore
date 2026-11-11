@@ -1,0 +1,61 @@
+# ── NetScope .gitignore ──────────────────────────────────────────────────────
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+*.egg
+.eggs/
+
+# Environment files
+.env
+!.env.example
+
+# Logs
+logs/*.log
+
+# SQLite databases
+*.db
+*.sqlite
+*.sqlite3
+
+# IDE / editor
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
+# OS artifacts
+Thumbs.db
+Desktop.ini
+
+# Type checking
+.mypy_cache/
+.dmypy.json
+
+# Byte-compiled / optimized
+*.pyc
+*.pyd
+
+# Npcap installer (download separately)
+npcap*.exe

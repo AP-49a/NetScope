@@ -1,0 +1,24 @@
+/* static/css/style.css — Phase 2 styles placeholder */
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: #0f172a;
+  color: #e2e8f0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+}
+
+.placeholder {
+  text-align: center;
+  opacity: 0.6;
+}
+
+.placeholder h1 {
+  font-size: 2.5rem;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.5rem;
+}

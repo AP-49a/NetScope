@@ -1,0 +1,24 @@
+# NetScope — Python dependencies
+# Phase 1: Environment & Architecture
+# Generated for Python 3.11+
+
+# Web framework
+flask==3.1.3
+flask-cors==6.0.5
+
+# Network interface introspection (Phase 1 — active)
+psutil==7.2.2
+
+# Network packet capture (Phase 2 — installed now, used later)
+scapy==2.8.0
+
+# Environment variable management
+python-dotenv==1.2.4
+
+# ── Testing ──────────────────────────────────────────────────────────────────
+pytest==8.3.5
+pytest-cov==6.1.0
+
+# ── Dev / lint (optional, not required at runtime) ───────────────────────────
+# flake8==7.2.0
+# black==24.12.1
