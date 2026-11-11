@@ -1,210 +1,180 @@
-# NetScope
+# NetScope 🌐
 
-A locally hosted web application for discovering and monitoring devices on your local network.
+[![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)](https://github.com/your-username/netscope)
+[![Python](https://img.shields.io/badge/python-3.11%2B-brightgreen.svg)](https://www.python.org/)
+[![Platform](https://img.shields.io/badge/platform-Windows%2011-0078D6.svg)](https://www.microsoft.com/windows)
+[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-119%20passed-success.svg)]()
+[![Coverage](https://img.shields.io/badge/coverage-92%25-brightgreen.svg)]()
 
-> **Phase 1 complete.** The project foundation — environment, configuration, interface detection, network analysis, and tests — is in place. Device discovery and the web UI are coming in Phase 2+.
-
----
-
-## Table of Contents
-
-- [Requirements](#requirements)
-- [Quick Start](#quick-start)
-- [Project Structure](#project-structure)
-- [Configuration](#configuration)
-- [Running Tests](#running-tests)
-- [Npcap Installation](#npcap-installation-required-for-phase-2)
-- [Known Limitations](#known-limitations)
-- [Development Roadmap](#development-roadmap)
+**NetScope** is a local-first network discovery and device monitoring web application designed specifically for Windows 11. Built with Python, Flask, Scapy, SQLite, and vanilla frontend technologies, NetScope provides deep visibility into your authorized local subnet without requiring complex command-line utilities or third-party cloud telemetry.
 
 ---
 
-## Requirements
+## 🌟 Key Features
 
-| Requirement | Version |
-|---|---|
-| Operating System | Windows 11 |
-| Python | 3.11 or later (3.14 used in development) |
-| Npcap | Latest release *(Phase 2 only)* |
+- **Automatic Interface & Subnet Discovery**: Detects active physical network adapters (Wi-Fi, Ethernet), resolves the default gateway using Windows routing tables, and calculates exact subnet CIDR boundaries.
+- **Scapy ARP Broadcast Engine**: Fast, non-blocking address resolution protocol (ARP) scanning across local subnet segments.
+- **OUI Manufacturer Identification**: Offline MAC prefix database identifying device manufacturers (Apple, Intel, Samsung, Dell, Raspberry Pi, TP-Link, etc.) without external API latency.
+- **Reverse DNS Hostname Resolution**: Automatically attempts hostname resolution for responding IP addresses with thread-bounded timeouts.
+- **Persistent Device Inventory**: SQLite database in Write-Ahead Logging (WAL) mode tracks devices across scans, accurately recording initial discovery (`first_seen`), most recent activity (`last_seen`), and availability (`online` / `offline`).
+- **Interactive Dark Dashboard**: High-contrast, responsive interface with real-time progress indicators, search/filter controls, and a historical scan log modal.
+- **Self-Contained Preflight Launcher**: Automated environment verification validating Python version, dependencies, SQLite schema, and packet capture driver availability.
 
 ---
 
-## Quick Start
+## 📐 System Architecture
 
-### 1. Clone the repository
+```
+Browser Client (http://127.0.0.1:5000)
+       │
+       ▼
+Flask Web Server (app.py) ── REST API (api/routes.py)
+       │
+       ▼
+Scan Service Coordinator (services/scan_service.py) ── Concurrency Mutex Lock
+       │
+       ├─────────────────────────────────┐
+       ▼                                 ▼
+Scanner Engine (scanner/)       Database Storage (database/)
+├── interface.py (psutil)       ├── db.py (SQLite WAL Mode)
+├── network.py (ipaddress)      └── models.py (Devices & History)
+├── discovery.py (Scapy ARP)
+├── oui.py (Hardware Vendors)
+└── hostname.py (Reverse DNS)
+```
 
+---
+
+## 💻 Prerequisites
+
+| Component | Minimum Requirement | Notes |
+|---|---|---|
+| **Operating System** | Windows 11 / Windows 10 (64-bit) | Tested on Windows 11 AMD64 |
+| **Python** | 3.11 or later | Python 3.14 compatible |
+| **Packet Capture** | **Npcap** (Recommended) | Required for Scapy raw ARP packet injection |
+| **User Privileges** | Administrator | Elevated terminal required for raw socket access |
+
+---
+
+## 📥 Npcap Installation Guide
+
+NetScope uses Scapy to transmit raw Layer 2 ARP frames. On Windows, this requires the **Npcap** packet capture driver.
+
+1. Download the Npcap installer from the official website:  
+   👉 **[https://npcap.com/#download](https://npcap.com/#download)**
+2. Run the installer (`npcap-x.xx.exe`).
+3. **Important Installation Checkbox**:
+   - ✅ Ensure **"Install Npcap in WinPcap API-compatible Mode"** is checked.
+4. Complete the installation and reboot if prompted.
+
+> **Administrator Privileges:** Due to Windows raw socket security boundaries, your terminal or command prompt must be launched with **"Run as Administrator"** when scanning the network.
+
+---
+
+## 🚀 Quick Start
+
+### 1. Clone the Repository
 ```powershell
 git clone https://github.com/your-username/netscope.git
 cd netscope
 ```
 
-### 2. Create and activate a virtual environment
-
+### 2. Create and Activate Virtual Environment
 ```powershell
 python -m venv venv
 .\venv\Scripts\Activate.ps1
 ```
+*(If PowerShell blocks execution of scripts, run `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`)*
 
-> **PowerShell execution policy:** If you see a script execution error, run:
-> ```powershell
-> Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-> ```
-
-### 3. Install dependencies
-
+### 3. Install Dependencies
 ```powershell
 pip install -r requirements.txt
 ```
 
-### 4. Configure environment variables
-
+### 4. Configure Environment
 ```powershell
 Copy-Item .env.example .env
-# Edit .env with your preferred settings (optional for Phase 1)
 ```
+*(Default settings bind to `127.0.0.1:5000` and use `netscope.db`)*
 
-### 5. Verify network detection (Phase 1 demo)
+### 5. Launch NetScope
+You can launch NetScope using the automated preflight launcher or the Windows batch runner:
 
+**Option A: Python Launcher (Recommended)**
 ```powershell
-python -c "
-from scanner.network import get_network_config
-cfg = get_network_config()
-if cfg:
-    print(f'Interface : {cfg.interface_name}')
-    print(f'IP        : {cfg.ip_address}')
-    print(f'Mask      : {cfg.subnet_mask}')
-    print(f'Gateway   : {cfg.gateway}')
-    print(f'CIDR      : {cfg.cidr}')
-else:
-    print('No active network interface found.')
-"
+python run.py
 ```
+
+**Option B: Windows Batch Runner**
+```cmd
+run.bat
+```
+
+Once started, open your web browser and navigate to:
+👉 **`http://127.0.0.1:5000`**
 
 ---
 
-## Project Structure
+## 📡 REST API Reference
 
-```
-netscope/
-├── app.py               Flask entry point (Phase 2)
-├── config.py            Centralised env-based configuration
-├── requirements.txt     Pinned dependencies
-├── .env.example         Environment variable template
-├── .gitignore
-├── README.md
-│
-├── scanner/
-│   ├── interface.py     Interface enumeration & classification  ✅
-│   ├── network.py       IP / mask / gateway / CIDR detection   ✅
-│   └── discovery.py     ARP scan stub (Phase 2)                🔲
-│
-├── api/
-│   └── routes.py        Flask Blueprint stub (Phase 2)          🔲
-│
-├── database/
-│   ├── db.py            SQLite connection stub (Phase 2)        🔲
-│   └── models.py        ORM model stubs (Phase 2)              🔲
-│
-├── utils/
-│   └── logger.py        Rotating file + console logger         ✅
-│
-├── templates/
-│   └── index.html       Placeholder HTML template
-│
-├── static/
-│   ├── css/style.css    Placeholder stylesheet
-│   └── js/app.js        Placeholder JavaScript
-│
-├── tests/
-│   ├── conftest.py      pytest session configuration
-│   ├── test_interface.py Interface tests (28 tests)            ✅
-│   └── test_network.py  Network tests (29 tests)               ✅
-│
-├── logs/                Rotating logs (git-ignored)
-└── docs/
-    ├── architecture.md
-    └── development-roadmap.md
-```
+NetScope provides a local JSON API. For detailed schema documentation, refer to **[docs/api.md](docs/api.md)**.
 
----
-
-## Configuration
-
-All settings are read from environment variables. Copy `.env.example` to `.env` and edit as needed.
-
-| Variable | Default | Description |
+| Endpoint | Method | Description |
 |---|---|---|
-| `FLASK_HOST` | `127.0.0.1` | Bind address for the Flask server |
-| `FLASK_PORT` | `5000` | Port for the Flask server |
-| `FLASK_DEBUG` | `false` | Enable Flask debug mode |
-| `SECRET_KEY` | *(dev key)* | Flask session secret |
-| `LOG_LEVEL` | `INFO` | Logging level (`DEBUG`, `INFO`, `WARNING`, `ERROR`) |
-| `PREFERRED_INTERFACE` | *(auto)* | Force a specific interface name |
-| `SCAN_TIMEOUT` | `2` | ARP scan timeout in seconds (Phase 2) |
-| `DATABASE_PATH` | `netscope.db` | SQLite database path relative to project root |
+| `/api/network` | `GET` | Retrieves active network interface, host IP, subnet mask, and CIDR |
+| `/api/scan` | `POST` | Initiates asynchronous ARP sweep (optional `cidr` and `timeout`) |
+| `/api/status` | `GET` | Returns scanning state (`idle`, `scanning`, `completed`, `error`) |
+| `/api/devices` | `GET` | Returns list of tracked devices with status and timestamp history |
+| `/api/history` | `GET` | Returns audit log of previous scan sessions |
 
 ---
 
-## Running Tests
+## 🛠️ Troubleshooting & FAQ
+
+### 1. `PermissionError` or "Scapy requires administrative privileges"
+- **Cause:** Windows prevents non-elevated user accounts from creating raw Layer 2 network sockets.
+- **Fix:** Close your terminal, right-click **PowerShell** or **Command Prompt**, choose **"Run as administrator"**, navigate back to `c:\codes\netscope`, activate your venv, and run `python run.py`.
+
+### 2. `Scapy_Exception: Sniffing and sending packets is not available`
+- **Cause:** Npcap is either not installed or was installed without WinPcap compatibility.
+- **Fix:** Reinstall Npcap from [npcap.com](https://npcap.com/#download) with the **"Install Npcap in WinPcap API-compatible Mode"** checkbox enabled.
+
+### 3. Only the local computer and default gateway appear in scans
+- **Cause:** Many modern home or corporate Wi-Fi routers enable **AP Isolation** (Client Isolation) preventing Wi-Fi devices from seeing one another, or target devices have strict local firewalls that reject ARP queries.
+- **Fix:** Ensure you are on a trusted local network. If using Wi-Fi, test via Ethernet or check router settings for "AP Isolation".
+
+### 4. Port 5000 is already in use
+- **Cause:** Another application is occupying TCP port 5000.
+- **Fix:** Set a custom port in your `.env` file (`PORT=5050`) or run with `PORT=5050 python run.py`.
+
+---
+
+## ⚠️ Important Limitations
+
+In alignment with responsible network discovery principles:
+1. **Local Subnet Scope:** NetScope uses ARP broadcast packets which do not cross Layer 3 routing boundaries. Scans are strictly confined to the local subnet segment.
+2. **Honest Reporting:** NetScope only reports verifiable attributes. When a hostname or manufacturer cannot be resolved, it is reported as `Unknown` rather than synthesized.
+3. **Out of MVP Scope:** Port scanning, deep packet inspection, automated device disconnection, and remote cloud synchronization are deliberately excluded from this release.
+
+---
+
+## 🧪 Running Automated Tests
+
+NetScope includes a hermetic test suite with unit, integration, and stress tests.
 
 ```powershell
-# From the project root with the venv active:
-python -m pytest tests/ -v
+# Run full test suite
+pytest tests/ -v
+
+# Run with test coverage report
+pytest tests/ --cov=scanner --cov=services --cov=database --cov=api --cov=utils --cov-report=term-missing
 ```
 
-Expected output: **57 passed**.
-
-To also see coverage:
-```powershell
-python -m pytest tests/ -v --cov=scanner --cov=utils --cov-report=term-missing
-```
+Current test status: **119 passed, 0 failures, 92% statement coverage**.
 
 ---
 
-## Npcap Installation (required for Phase 2)
+## 📄 License
 
-ARP scanning requires raw socket access provided by Npcap.
-
-1. Download the latest Npcap installer from [npcap.com](https://npcap.com/#download).
-2. Run the installer **as Administrator**.
-3. During installation, enable:
-   - ☑ **Install Npcap in WinPcap API-compatible Mode** (required for Scapy compatibility).
-4. Restart your machine or reload the Npcap service:
-   ```powershell
-   net stop npcap
-   net start npcap
-   ```
-5. Verify Scapy can see your interfaces:
-   ```powershell
-   python -c "from scapy.all import get_if_list; print(get_if_list())"
-   ```
-
-> **Administrator privileges:** ARP scanning with Scapy requires either running as Administrator or membership in the `Npcap Users` group.
-
----
-
-## Known Limitations
-
-| Limitation | Workaround / Future fix |
-|---|---|
-| Gateway detection relies on `route.exe` | Not an issue on standard Windows installs |
-| Interface classification uses name heuristics | Exotic adapters fall back to `UNKNOWN`; set `PREFERRED_INTERFACE` |
-| `venv/` created by a different Python install may be inaccessible | Delete and recreate with `python -m venv venv` |
-| ARP scanning requires Npcap and admin rights | Phase 2; documented in this README |
-| No live scanning in Phase 1 | Phase 2 |
-| No web UI in Phase 1 | Phase 4 |
-
----
-
-## Development Roadmap
-
-See [`docs/development-roadmap.md`](docs/development-roadmap.md) for the full six-phase plan.
-
-| Phase | Description | Status |
-|---|---|---|
-| 1 | Environment & Architecture | ✅ Complete |
-| 2 | Network Discovery Engine | 🔲 |
-| 3 | REST API & Flask Backend | 🔲 |
-| 4 | Frontend UI | 🔲 |
-| 5 | Persistent History | 🔲 |
-| 6 | Polish & Production Hardening | 🔲 |
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.

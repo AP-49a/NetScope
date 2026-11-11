@@ -1,43 +1,76 @@
 """
-app.py — NetScope Flask application entry point.
+app.py — NetScope Flask application factory and server entry point.
 
-Phase 1: Stub only.
-Phase 2: Flask app factory, blueprint registration, and dev-server launch
-         will be implemented here.
+Initializes the Flask WSGI server, configures CORS, mounts the REST API Blueprint,
+and serves the web application dashboard.
 """
 
 from __future__ import annotations
 
-# ── Phase 2 implementation outline ──────────────────────────────────────────
-#
-# from flask import Flask
-# from flask_cors import CORS
-# from config import FLASK_HOST, FLASK_PORT, FLASK_DEBUG, SECRET_KEY
-# from api.routes import api_bp
-# from utils.logger import configure_logging, get_logger
-# from config import LOG_LEVEL, LOG_FILE
-#
-# def create_app() -> Flask:
-#     configure_logging(log_level=LOG_LEVEL, log_file=LOG_FILE)
-#     logger = get_logger(__name__)
-#
-#     app = Flask(__name__, template_folder="templates", static_folder="static")
-#     app.secret_key = SECRET_KEY
-#     CORS(app)
-#     app.register_blueprint(api_bp)
-#
-#     logger.info("NetScope application created.")
-#     return app
-#
-# if __name__ == "__main__":
-#     application = create_app()
-#     application.run(host=FLASK_HOST, port=FLASK_PORT, debug=FLASK_DEBUG)
-# ─────────────────────────────────────────────────────────────────────────────
+from typing import Any, Optional
+
+from flask import Flask
+from flask_cors import CORS
+
+from api.routes import api_bp
+from config import (
+    FLASK_DEBUG,
+    FLASK_HOST,
+    FLASK_PORT,
+    LOG_FILE,
+    LOG_LEVEL,
+    SECRET_KEY,
+    STATIC_DIR,
+    TEMPLATES_DIR,
+)
+from utils.logger import configure_logging, get_logger
+
+logger = get_logger(__name__)
+
+
+def create_app(config_override: Optional[dict[str, Any]] = None) -> Flask:
+    """
+    Construct and configure the NetScope Flask application.
+
+    Parameters
+    ----------
+    config_override : Optional[dict[str, Any]]
+        Optional key-value overrides for test or staging configurations.
+
+    Returns
+    -------
+    Flask
+        Configured WSGI application instance.
+    """
+    configure_logging(log_level=LOG_LEVEL, log_file=LOG_FILE)
+
+    app = Flask(
+        __name__,
+        template_folder=str(TEMPLATES_DIR),
+        static_folder=str(STATIC_DIR),
+    )
+
+    app.secret_key = SECRET_KEY
+
+    # Enable Cross-Origin Resource Sharing for API routes
+    CORS(app, resources={r"/api/*": {"origins": "*"}})
+
+    # Apply configuration overrides if provided (e.g. TESTING=True)
+    if config_override:
+        app.config.update(config_override)
+
+    # Register API and dashboard routes
+    app.register_blueprint(api_bp)
+
+    logger.info("NetScope Flask application initialized successfully.")
+    return app
+
 
 if __name__ == "__main__":
-    print(
-        "NetScope app.py — Phase 2 not yet implemented.\n"
-        "Run the Phase 1 network detection demo with:\n"
-        "  python -c \"from scanner.network import get_network_config; "
-        "print(get_network_config())\""
+    application = create_app()
+    logger.info("Starting NetScope web server on %s:%d", FLASK_HOST, FLASK_PORT)
+    application.run(
+        host=FLASK_HOST,
+        port=FLASK_PORT,
+        debug=FLASK_DEBUG,
     )

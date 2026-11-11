@@ -3,14 +3,189 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NetScope</title>
+  <title>NetScope — Local Network Discovery</title>
   <link rel="stylesheet" href="/static/css/style.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%233b82f6'><path d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 17.93c-3.95-.49-7-3.85-7-7.93 0-.62.08-1.21.21-1.79L9 15v1c0 1.1.9 2 2 2v1.93zm6.9-2.54c-.26-.81-1-1.39-1.9-1.39h-1v-3c0-.55-.45-1-1-1H8v-2h2c.55 0 1-.45 1-1V7h2c1.1 0 2-.9 2-2v-.41c2.93 1.19 5 4.06 5 7.41 0 2.08-.8 3.97-2.1 5.39z'/></svg>" />
 </head>
 <body>
-  <main class="placeholder">
-    <h1>NetScope</h1>
-    <p>Local network discovery and monitoring — Phase 2 UI coming soon.</p>
+  <!-- Header / Navigation -->
+  <header class="app-header">
+    <div class="header-container">
+      <div class="brand">
+        <div class="brand-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="9"></circle>
+            <path d="M12 3v18"></path>
+            <path d="M3 12h18"></path>
+            <circle cx="12" cy="12" r="4" fill="currentColor" opacity="0.3"></circle>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">NetScope</h1>
+          <span class="brand-subtitle">Network Discovery &amp; Monitoring</span>
+        </div>
+      </div>
+
+      <div class="header-meta">
+        <div id="status-badge" class="status-badge badge-idle" aria-live="polite">
+          <span class="status-dot"></span>
+          <span id="status-text">Idle</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Error / Alert Banner -->
+  <div id="alert-banner" class="alert-banner hidden" role="alert">
+    <div class="alert-content">
+      <span id="alert-message">Error connecting to server.</span>
+      <button id="alert-dismiss" class="alert-dismiss" aria-label="Dismiss alert">&times;</button>
+    </div>
+  </div>
+
+  <main class="main-container">
+    <!-- Network Overview Cards -->
+    <section class="section" aria-labelledby="network-heading">
+      <div class="section-header">
+        <h2 id="network-heading" class="section-title">Network Configuration</h2>
+        <span class="section-hint">Active host interface parameters</span>
+      </div>
+
+      <div id="network-overview" class="overview-grid">
+        <div class="card">
+          <div class="card-label">Active Adapter</div>
+          <div id="adapter-name" class="card-value mono">—</div>
+          <div id="adapter-type" class="card-sub">Detecting adapter...</div>
+        </div>
+        <div class="card">
+          <div class="card-label">IPv4 Address</div>
+          <div id="local-ip" class="card-value mono">—</div>
+          <div id="local-ip-sub" class="card-sub">Host address</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Subnet Mask</div>
+          <div id="subnet-mask" class="card-value mono">—</div>
+          <div id="subnet-prefix" class="card-sub">CIDR notation</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Default Gateway</div>
+          <div id="gateway-ip" class="card-value mono">—</div>
+          <div id="gateway-sub" class="card-sub">Upstream router</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Scan Actions & Summary Bar -->
+    <section class="section">
+      <div class="action-bar">
+        <div class="action-left">
+          <button id="scan-btn" class="btn btn-primary">
+            <span id="scan-spinner" class="spinner hidden"></span>
+            <span id="scan-btn-text">Scan Network</span>
+          </button>
+          <span id="scan-progress-msg" class="scan-msg">Ready to scan.</span>
+        </div>
+
+        <div class="action-stats">
+          <div class="stat-item">
+            <span class="stat-label">Discovered</span>
+            <span id="stat-device-count" class="stat-val mono">0</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <span class="stat-label">Subnet</span>
+            <span id="stat-cidr" class="stat-val mono">—</span>
+          </div>
+          <div class="stat-divider"></div>
+          <div class="stat-item">
+            <span class="stat-label">Duration</span>
+            <span id="stat-duration" class="stat-val mono">—</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Discovered Devices Inventory -->
+    <section class="section" aria-labelledby="inventory-heading">
+      <div class="inventory-header">
+        <div>
+          <h2 id="inventory-heading" class="section-title">Device Inventory</h2>
+          <span class="section-hint">Responding devices on local network segment</span>
+        </div>
+
+        <!-- Search and Filter Controls -->
+        <div class="filter-controls">
+          <div class="search-box">
+            <svg class="search-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="11" cy="11" r="8"></circle>
+              <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+            <input
+              type="text"
+              id="search-input"
+              class="search-input"
+              placeholder="Search IP, MAC, hostname, vendor..."
+              aria-label="Filter devices by search query"
+            />
+            <button id="search-clear" class="search-clear hidden" aria-label="Clear search">&times;</button>
+          </div>
+
+          <select id="status-filter" class="select-filter" aria-label="Filter by status">
+            <option value="all">All Statuses</option>
+            <option value="online">Online</option>
+            <option value="offline">Offline</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Devices Table Container -->
+      <div class="table-container">
+        <table id="devices-table" class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">IP Address</th>
+              <th scope="col">MAC Address</th>
+              <th scope="col">Hostname</th>
+              <th scope="col">Manufacturer</th>
+              <th scope="col">Status</th>
+            </tr>
+          </thead>
+          <tbody id="devices-tbody">
+            <!-- Dynamic device rows injected here -->
+          </tbody>
+        </table>
+
+        <!-- Empty State -->
+        <div id="table-empty" class="table-empty">
+          <div class="empty-icon">
+            <svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.5">
+              <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+              <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+              <line x1="6" y1="6" x2="6.01" y2="6"></line>
+              <line x1="6" y1="18" x2="6.01" y2="18"></line>
+            </svg>
+          </div>
+          <div class="empty-title">No Devices Discovered</div>
+          <div class="empty-desc">Click "Scan Network" above to run an ARP discovery on your local network.</div>
+        </div>
+
+        <!-- No Filter Results State -->
+        <div id="table-no-results" class="table-empty hidden">
+          <div class="empty-title">No Matching Devices</div>
+          <div class="empty-desc">No devices match your current search and filter criteria.</div>
+        </div>
+      </div>
+    </section>
   </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <div class="footer-container">
+      <span>NetScope v1.0.0 &bull; Local Host Network Discovery</span>
+      <span>Target: Windows 11 &bull; Powered by Flask &amp; Scapy</span>
+    </div>
+  </footer>
+
   <script src="/static/js/app.js"></script>
 </body>
 </html>

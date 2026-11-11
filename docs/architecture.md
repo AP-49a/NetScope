@@ -1,189 +1,116 @@
 # NetScope — Architecture Documentation
 
-## Project Overview
+## 1. Project Overview
 
-NetScope is a locally hosted web application for discovering and monitoring devices connected to a local network. It runs on Windows 11 and is served through a local Flask server.
-
----
-
-## High-Level Architecture
-
-```
-Browser (localhost:5000)
-        │
-        ▼
-  Flask (app.py)
-        │
-   ┌────┴────┐
-   │  API     │  api/routes.py  ─── JSON responses
-   └────┬────┘
-        │
-   ┌────▼────────────────────┐
-   │  Scanner Layer          │
-   │  scanner/interface.py   │  psutil — interface enumeration
-   │  scanner/network.py     │  ipaddress, route — IP/mask/GW/CIDR
-   │  scanner/discovery.py   │  Scapy+Npcap — ARP scan (Phase 2)
-   └────┬────────────────────┘
-        │
-   ┌────▼────┐
-   │Database │  database/db.py + models.py  ─── SQLite (Phase 2)
-   └─────────┘
-```
+NetScope is a local-first network discovery and device monitoring web application designed specifically for Windows 11. It allows users to inspect their local network interfaces, broadcast ARP discovery queries, identify connected devices with MAC OUI manufacturer lookups and reverse DNS hostnames, inspect device availability, and maintain historical scan logs in an SQLite database.
 
 ---
 
-## Module Reference
-
-### `config.py`
-Centralised configuration. Reads all tuneable values from environment variables via `.env`. Exposes typed constants for every other module.
-
-### `utils/logger.py`
-Configures the Python root logger with:
-- Formatted console output.
-- Rotating file handler writing to `logs/netscope.log` (5 MB, 3 backups).
-- Graceful fallback when the log directory is not writable.
-
-Call `get_logger(__name__)` in every module.
-
-### `scanner/interface.py`
-Enumerates network interfaces via `psutil`. Classifies each as `LOOPBACK`, `ETHERNET`, `WIFI`, `VIRTUAL`, or `UNKNOWN` using name-pattern heuristics. Exposes:
-
-| Function | Purpose |
-|---|---|
-| `list_interfaces()` | All interfaces (active and inactive) |
-| `list_active_interfaces()` | Interfaces that are UP with an IPv4 address |
-| `get_preferred_interface(name)` | Best interface for outbound traffic |
-
-### `scanner/network.py`
-Derives network configuration from an active interface. Exposes:
-
-| Function | Purpose |
-|---|---|
-| `netmask_to_prefix_length(mask)` | `'255.255.255.0'` → `24` |
-| `calculate_cidr(ip, mask)` | `'192.168.1.5', '255.255.255.0'` → `'192.168.1.0/24'` |
-| `get_default_gateway()` | Parses `route print 0.0.0.0` |
-| `get_network_config(preferred)` | Complete `NetworkConfig` for the best interface |
-| `get_all_network_configs()` | One `NetworkConfig` per active interface |
-
-### `scanner/discovery.py`
-**Stub — Phase 2.** Will implement ARP-based device discovery using Scapy.
-
-### `api/routes.py`
-**Stub — Phase 2.** Flask Blueprint with JSON API endpoints.
-
-### `database/`
-**Stub — Phase 2.** SQLite schema management and ORM models.
-
-### `app.py`
-**Stub — Phase 2.** Flask application factory and dev-server entry point.
-
----
-
-## Data Flow (Phase 1)
+## 2. System Architecture
 
 ```
-psutil.net_if_stats()
-psutil.net_if_addrs()
-        │
-        ▼
-  list_interfaces()
-        │
-        ▼
-  get_preferred_interface()     ◄── PREFERRED_INTERFACE env var
-        │
-        ├──► ipv4_address
-        ├──► ipv4_netmask
-        │
-        ▼
-  route print 0.0.0.0
-        │
-        ├──► gateway
-        │
-        ▼
-  calculate_cidr(ip, mask)
-        │
-        ▼
-  NetworkConfig(interface, ip, mask, gateway, cidr, prefix_length)
+                       ┌────────────────────────────────────────────────────────┐
+                       │                   Browser Client                       │
+                       │           (HTML5 / CSS3 / Vanilla JavaScript)          │
+                       └───────────────────────────┬────────────────────────────┘
+                                                   │ HTTP / JSON
+                                                   ▼
+                       ┌────────────────────────────────────────────────────────┐
+                       │               Flask Application (app.py)               │
+                       │             API Blueprint (api/routes.py)              │
+                       └─────────────┬────────────────────────────┬─────────────┘
+                                     │                            │
+                                     ▼                            ▼
+                 ┌──────────────────────────────────────┐  ┌─────────────┐
+                 │     Scan Service (Thread Lock)       │  │ Static & UI │
+                 │      (services/scan_service.py)      │  │ (Templates) │
+                 └──────────────────┬───────────────────┘  └─────────────┘
+                                    │
+                                    ▼
+                 ┌──────────────────────────────────────┐
+                 │        Scanner Engine Layer          │
+                 │ ──────────────────────────────────── │
+                 │ • scanner/interface.py (psutil)      │
+                 │ • scanner/network.py (ipaddress)     │
+                 │ • scanner/discovery.py (Scapy ARP)   │
+                 │ • scanner/oui.py (OUI Vendor Map)    │
+                 │ • scanner/hostname.py (Reverse DNS)  │
+                 └──────────────────┬───────────────────┘
+                                    │
+                                    ▼
+                 ┌──────────────────────────────────────┐
+                 │       Database Persistence           │
+                 │ ──────────────────────────────────── │
+                 │ • database/db.py (SQLite WAL mode)   │
+                 │ • database/models.py (Data Models)   │
+                 │   - devices                          │
+                 │   - scan_history                     │
+                 │   - scan_results                     │
+                 └──────────────────────────────────────┘
 ```
 
 ---
 
-## Dependency Map
+## 3. Module Reference
 
-| Package | Version | Purpose | Phase |
-|---|---|---|---|
-| `flask` | 3.1.3 | Web framework | 2 |
-| `flask-cors` | 6.0.5 | CORS headers | 2 |
-| `psutil` | 7.2.2 | Interface enumeration | **1** |
-| `scapy` | 2.8.0 | ARP packet crafting | 2 |
-| `python-dotenv` | 1.2.4 | `.env` loading | **1** |
-| `pytest` | 9.2.0 | Test runner | **1** |
-| `pytest-cov` | 6.1.0 | Coverage reports | **1** |
+### 3.1 Application & Launcher Layer
+- **`run.py`**: Production launcher executing diagnostic preflights:
+  - Verifies Python version (`sys.version_info >= (3, 11)`).
+  - Verifies presence of core libraries (`flask`, `psutil`, `scapy`, `dotenv`).
+  - Checks Windows Administrator privileges for raw ARP packet capture.
+  - Automatically initializes SQLite database schema.
+  - Starts Flask server on `http://127.0.0.1:5000`.
+- **`run.bat`**: Windows batch wrapper for double-click startup.
+- **`app.py`**: Flask application factory (`create_app()`) registering routes and configuration.
+- **`config.py`**: Centralized configuration reading from `.env` with fallback defaults.
 
----
+### 3.2 Scanner Engine (`scanner/`)
+- **`scanner/interface.py`**: Interface enumeration via `psutil`. Classifies interfaces (`WIFI`, `ETHERNET`, `LOOPBACK`, `VIRTUAL`, `UNKNOWN`) and selects highest priority active physical interface.
+- **`scanner/network.py`**: IPv4 subnet calculations (`ipaddress`), netmask-to-prefix translation, and default gateway resolution parsing `route print 0.0.0.0`.
+- **`scanner/discovery.py`**: Scapy-based ARP broadcast engine (`Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(pdst=cidr)`). Returns typed `DiscoveredDevice` and `ScanResult` instances with duration and status metrics.
+- **`scanner/oui.py`**: Offline MAC Organizationally Unique Identifier (OUI) lookup matching normalized MAC prefixes (e.g., `00:1A:2B`) against known hardware vendors.
+- **`scanner/hostname.py`**: Non-blocking reverse DNS hostname resolver with thread-bounded timeouts to avoid stalling network sweeps.
 
-## Directory Layout
+### 3.3 Application Services (`services/`)
+- **`services/scan_service.py`**: Singleton state coordinator:
+  - Uses `threading.Lock` to enforce single-writer mutual exclusion, preventing concurrent conflicting ARP sweeps.
+  - Spawns background daemon worker threads for asynchronous scanning.
+  - Manages scanning state transitions (`idle` → `scanning` → `completed` / `error`).
+  - Automatically persists scan sessions and discovered devices to SQLite.
 
-```
-netscope/
-├── app.py               Flask entry point (Phase 2 stub)
-├── config.py            Centralised env-based config
-├── requirements.txt     Pinned dependencies
-├── .env.example         Environment variable template
-├── .gitignore
-├── README.md
-│
-├── scanner/
-│   ├── interface.py     ✅ Interface enumeration & classification
-│   ├── network.py       ✅ IP / mask / gateway / CIDR detection
-│   └── discovery.py     🔲 ARP scan stub (Phase 2)
-│
-├── api/
-│   └── routes.py        🔲 Flask Blueprint stub (Phase 2)
-│
-├── database/
-│   ├── db.py            🔲 SQLite stub (Phase 2)
-│   └── models.py        🔲 ORM models stub (Phase 2)
-│
-├── utils/
-│   └── logger.py        ✅ Rotating file + console logger
-│
-├── templates/
-│   └── index.html       Placeholder HTML
-│
-├── static/
-│   ├── css/style.css    Placeholder CSS
-│   └── js/app.js        Placeholder JS
-│
-├── tests/
-│   ├── conftest.py      pytest session config
-│   ├── test_interface.py ✅ 28 tests
-│   └── test_network.py  ✅ 29 tests
-│
-├── logs/                Rotating log files (git-ignored)
-└── docs/                Architecture & roadmap
-```
+### 3.4 Data Access & Persistence (`database/`)
+- **`database/db.py`**: Connection pool management and schema initialization:
+  - SQLite Write-Ahead Logging (`PRAGMA journal_mode = WAL`) for concurrent read performance.
+  - Foreign key enforcement (`PRAGMA foreign_keys = ON`).
+  - Safe transaction context manager with automatic commit on success and rollback on exceptions.
+- **`database/models.py`**: Data access functions:
+  - `upsert_device()`: Inserts newly discovered devices or updates IP, last seen, and manufacturer while strictly preserving the initial `first_seen` timestamp.
+  - `mark_unseen_devices_offline()`: Gracefully transitions absent devices to `offline` status without data loss.
+  - `record_scan_session()`: Persists audit sessions in `scan_history` and links device observations in `scan_results`.
+  - `get_all_devices()`, `get_scan_history()`: Structured query accessors.
+
+### 3.5 REST API Layer (`api/`)
+- **`api/routes.py`**: Flask Blueprint defining JSON endpoints:
+  - `GET /`: Serves the dashboard HTML.
+  - `GET /api/network`: Returns active network interface, host IP, mask, and CIDR.
+  - `POST /api/scan`: Accepts optional target CIDR (validated via `ipaddress`) and timeout; triggers asynchronous background scan.
+  - `GET /api/status`: Returns current scanner progress and latest metrics.
+  - `GET /api/devices`: Serves complete inventory of tracked devices with status filters.
+  - `GET /api/history`: Returns historical scan sessions.
+
+### 3.6 Frontend Client (`templates/` & `static/`)
+- **`templates/index.html`**: Semantic, accessible HTML5 dashboard structure with network overview, action toolbar, device inventory table, and historical log modal.
+- **`static/css/style.css`**: Responsive dark theme stylesheet with CSS custom properties, monospace tabular data alignment, and status badge styling.
+- **`static/js/app.js`**: Vanilla JavaScript client controller featuring async fetch calls, poll loops during scans, real-time client-side search filtering, and error handling.
 
 ---
 
-## Design Decisions
+## 4. Concurrency & Thread-Safety Model
 
-### Why `psutil` for interface detection?
-- Cross-platform, no admin privileges required on Windows.
-- Provides interface stats (UP/DOWN), addresses, and flags in one call.
-- Avoids `subprocess` calls to `ipconfig` which are fragile to locale changes.
-
-### Why `route print` for gateway detection?
-- `psutil` does not expose the default gateway.
-- `route print 0.0.0.0` is consistent across all Windows versions.
-- No third-party dependency required.
-- Parsed with a narrow regex; locale-independent for the IP columns.
-
-### Why `ipaddress` stdlib for CIDR calculation?
-- Built into Python 3.3+; no extra dependency.
-- `IPv4Network(strict=False)` handles host bits automatically.
-
-### Why name-pattern heuristics for interface classification?
-- Windows does not expose a reliable interface-type enum via `psutil`.
-- Heuristics cover the common cases (Wi-Fi, Ethernet, Hyper-V, WSL, Docker).
-- Unrecognised interfaces fall back to `UNKNOWN`; callers decide what to do.
+1. **Single-Writer Mutual Exclusion**:
+   - Only one active ARP scan is permitted at any given time.
+   - When a scan is running, `POST /api/scan` returns `409 Conflict` (`Scan in progress`).
+2. **Background Daemon Threading**:
+   - Scans run in a separate daemon thread to ensure the Flask HTTP request thread returns immediately with `202 Accepted`.
+3. **SQLite WAL Concurrency**:
+   - Write-Ahead Logging allows continuous reads (`GET /api/devices`) even while background scans are writing results to the database.
