@@ -23,6 +23,7 @@ from database.models import (
     get_scan_history,
     mark_unseen_devices_offline,
     record_scan_session,
+    set_device_custom_name,
     upsert_device,
 )
 from scanner.discovery import ScanResult
@@ -123,6 +124,32 @@ class TestDeviceUpsert:
         assert d["manufacturer"] == "Apple"  # Preserved
         assert d["first_seen"] == "2026-11-11T10:00:00Z"  # Preserved!
         assert d["last_seen"] == "2026-11-11T11:30:00Z"  # Updated!
+
+    def test_set_and_preserve_custom_name(self, temp_db: Path) -> None:
+        upsert_device(
+            mac_address="CC:DD:EE:11:22:33",
+            ip_address="192.168.1.80",
+            hostname="phone.local",
+            db_path=temp_db,
+        )
+
+        # Set custom friendly nickname
+        success = set_device_custom_name("CC:DD:EE:11:22:33", "Ankan's iPhone", db_path=temp_db)
+        assert success is True
+
+        dev = get_all_devices(db_path=temp_db)[0]
+        assert dev["custom_name"] == "Ankan's iPhone"
+
+        # Subsequent scan updates IP and last_seen, but preserves custom_name
+        upsert_device(
+            mac_address="CC:DD:EE:11:22:33",
+            ip_address="192.168.1.85",
+            db_path=temp_db,
+        )
+
+        dev_updated = get_all_devices(db_path=temp_db)[0]
+        assert dev_updated["ip_address"] == "192.168.1.85"
+        assert dev_updated["custom_name"] == "Ankan's iPhone"
 
 
 # ===========================================================================

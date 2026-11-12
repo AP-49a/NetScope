@@ -123,6 +123,26 @@ class TestStatusAndDevicesEndpoints:
         data = response.get_json()
         assert "history" in data
 
+    @patch("api.routes.set_device_custom_name")
+    def test_patch_device_name_success(self, mock_set_name: MagicMock, client: FlaskClient) -> None:
+        mock_set_name.return_value = True
+        response = client.patch(
+            "/api/devices/00:11:22:33:44:55",
+            json={"custom_name": "Living Room TV"},
+        )
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["custom_name"] == "Living Room TV"
+        assert data["mac_address"] == "00:11:22:33:44:55"
+
+    @patch("api.routes.set_device_custom_name", return_value=False)
+    def test_patch_device_name_not_found(self, _mock: MagicMock, client: FlaskClient) -> None:
+        response = client.patch(
+            "/api/devices/FF:FF:FF:FF:FF:FF",
+            json={"custom_name": "Nonexistent"},
+        )
+        assert response.status_code == 404
+
 
 # ===========================================================================
 # 4. Scan Initiation Endpoint (POST /api/scan)
@@ -178,29 +198,31 @@ class TestScanServiceLifecycle:
     """Unit tests for :class:`ScanService` business logic."""
 
     @patch("services.scan_service.scan_network")
-    def test_worker_success_lifecycle(self, mock_scan: MagicMock) -> None:
-        service = ScanService()
-        device = DiscoveredDevice(ip_address="192.168.1.10", mac_address="00:11:22:33:44:55")
-        mock_scan.return_value = ScanResult(
-            cidr="192.168.1.0/24",
-            interface_name="Ethernet",
-            devices=[device],
-            duration_seconds=0.75,
-            started_at="2026-11-11T00:00:00Z",
-            completed_at="2026-11-11T00:00:01Z",
-            success=True,
-        )
+    def test_worker_success_lifecycle(self, mock_scan: MagicMock, tmp_path: Path) -> None:
+        db_file = tmp_path / "lifecycle_test.db"
+        with patch("database.db.DATABASE_PATH", db_file):
+            service = ScanService()
+            device = DiscoveredDevice(ip_address="192.168.1.10", mac_address="00:11:22:33:44:55")
+            mock_scan.return_value = ScanResult(
+                cidr="192.168.1.0/24",
+                interface_name="Ethernet",
+                devices=[device],
+                duration_seconds=0.75,
+                started_at="2026-11-11T00:00:00Z",
+                completed_at="2026-11-11T00:00:01Z",
+                success=True,
+            )
 
-        # Acquire lock to simulate start_scan state
-        service._lock.acquire()
-        service._state = ScanState.SCANNING
+            # Acquire lock to simulate start_scan state
+            service._lock.acquire()
+            service._state = ScanState.SCANNING
 
-        service._run_scan_worker(cidr="192.168.1.0/24", interface_name="Ethernet", timeout=1.0)
+            service._run_scan_worker(cidr="192.168.1.0/24", interface_name="Ethernet", timeout=1.0)
 
-        assert service.is_scanning is False
-        assert service._state == ScanState.COMPLETED
-        assert len(service.get_devices()) == 1
-        assert service.get_devices()[0]["ip_address"] == "192.168.1.10"
+            assert service.is_scanning is False
+            assert service._state == ScanState.COMPLETED
+            assert len(service.get_devices()) == 1
+            assert service.get_devices()[0]["ip_address"] == "192.168.1.10"
 
     @patch("services.scan_service.scan_network")
     def test_worker_failure_lifecycle(self, mock_scan: MagicMock) -> None:

@@ -68,6 +68,7 @@ def init_db(db_path: Optional[Path | str] = None) -> None:
         mac_address TEXT NOT NULL UNIQUE,
         ip_address TEXT NOT NULL,
         hostname TEXT,
+        custom_name TEXT,
         manufacturer TEXT,
         first_seen TEXT NOT NULL,
         last_seen TEXT NOT NULL,
@@ -104,5 +105,10 @@ def init_db(db_path: Optional[Path | str] = None) -> None:
 
     with get_db_connection(db_path) as conn:
         conn.executescript(schema_sql)
+        # Migration: ensure custom_name column exists for pre-existing tables
+        try:
+            conn.execute("ALTER TABLE devices ADD COLUMN custom_name TEXT;")
+        except sqlite3.OperationalError:
+            pass  # Column already exists
 
     logger.info("Database schema initialized successfully.")

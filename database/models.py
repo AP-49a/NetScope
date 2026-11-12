@@ -26,6 +26,7 @@ def upsert_device(
     manufacturer: Optional[str] = None,
     timestamp: Optional[str] = None,
     status: str = "online",
+    custom_name: Optional[str] = None,
     db_path: Optional[Path | str] = None,
 ) -> int:
     """
@@ -34,6 +35,7 @@ def upsert_device(
     If the device is already in the database (matched by MAC address):
     - Updates ``last_seen``, ``ip_address``, and ``status`` to 'online'.
     - Updates ``hostname`` and ``manufacturer`` only if new values are present.
+    - Preserves ``custom_name`` unless a new non-empty custom_name is provided.
     - Strictly preserves the original ``first_seen`` timestamp.
 
     Returns
@@ -53,35 +55,72 @@ def upsert_device(
             cursor.execute(
                 """
                 INSERT INTO devices (
-                    mac_address, ip_address, hostname, manufacturer,
+                    mac_address, ip_address, hostname, custom_name, manufacturer,
                     first_seen, last_seen, status
-                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (clean_mac, ip_address, hostname, manufacturer, now_ts, now_ts, status),
+                (clean_mac, ip_address, hostname, custom_name, manufacturer, now_ts, now_ts, status),
             )
             device_id = cursor.lastrowid
             logger.debug("Inserted new device into database: %s (id=%d)", clean_mac, device_id)
             return int(device_id)
 
-        # Update existing record while preserving original first_seen
+        # Update existing record while preserving original first_seen and existing custom_name
         device_id = int(existing["id"])
         final_hostname = hostname if hostname is not None else existing["hostname"]
         final_manufacturer = manufacturer if manufacturer is not None else existing["manufacturer"]
+        final_custom_name = custom_name if custom_name is not None else existing["custom_name"]
 
         cursor.execute(
             """
             UPDATE devices SET
                 ip_address = ?,
                 hostname = ?,
+                custom_name = ?,
                 manufacturer = ?,
                 last_seen = ?,
                 status = ?
             WHERE id = ?
             """,
-            (ip_address, final_hostname, final_manufacturer, now_ts, status, device_id),
+            (ip_address, final_hostname, final_custom_name, final_manufacturer, now_ts, status, device_id),
         )
         logger.debug("Updated existing device in database: %s (id=%d)", clean_mac, device_id)
         return device_id
+
+
+def set_device_custom_name(
+    mac_address: str,
+    custom_name: Optional[str],
+    db_path: Optional[Path | str] = None,
+) -> bool:
+    """
+    Assign or update a user-defined friendly nickname for a device.
+
+    Parameters
+    ----------
+    mac_address : str
+        MAC address of the target device.
+    custom_name : Optional[str]
+        Friendly nickname (e.g. "Ankan's iPhone", "Smart TV") or None/empty to clear.
+
+    Returns
+    -------
+    bool
+        True if the device was found and updated, False otherwise.
+    """
+    clean_mac = mac_address.strip().upper()
+    cleaned_name = custom_name.strip() if custom_name and custom_name.strip() else None
+
+    with get_db_connection(db_path) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "UPDATE devices SET custom_name = ? WHERE mac_address = ?",
+            (cleaned_name, clean_mac),
+        )
+        success = cursor.rowcount > 0
+        if success:
+            logger.info("Updated custom nickname for %s -> '%s'", clean_mac, cleaned_name)
+        return success
 
 
 def mark_unseen_devices_offline(

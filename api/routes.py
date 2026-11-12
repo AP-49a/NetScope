@@ -13,7 +13,7 @@ from typing import Any
 
 from flask import Blueprint, jsonify, render_template, request
 
-from database.models import get_scan_history
+from database.models import get_scan_history, set_device_custom_name
 from scanner.network import get_network_config
 from services.scan_service import scan_service
 from utils.logger import get_logger
@@ -165,6 +165,30 @@ def get_devices() -> Any:
             {
                 "count": len(devices),
                 "devices": devices,
+            }
+        ),
+        200,
+    )
+
+
+@api_bp.route("/api/devices/<mac>", methods=["PATCH"])
+def update_device_name(mac: str) -> Any:
+    """
+    Update user-defined custom friendly name for a device.
+    """
+    data = request.get_json(silent=True) or {}
+    custom_name = data.get("custom_name")
+
+    success = set_device_custom_name(mac, custom_name)
+    if not success:
+        return jsonify({"error": f"Device with MAC '{mac}' not found."}), 404
+
+    return (
+        jsonify(
+            {
+                "message": "Device nickname updated successfully",
+                "mac_address": mac.upper(),
+                "custom_name": custom_name.strip() if custom_name and custom_name.strip() else None,
             }
         ),
         200,

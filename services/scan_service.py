@@ -115,6 +115,7 @@ class ScanService:
                         hostname=dev.hostname,
                         manufacturer=dev.manufacturer,
                         status="online",
+                        custom_name=dev.custom_name,
                     )
                     device_ids.append(dev_id)
 

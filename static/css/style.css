@@ -538,6 +538,53 @@ body {
   font-style: italic;
 }
 
+.device-name-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.device-custom-name {
+  font-weight: 600;
+  color: #60a5fa;
+}
+
+.device-hostname-sub {
+  font-size: 0.72rem;
+  color: var(--text-sub);
+  font-family: var(--font-mono);
+}
+
+.device-hostname-main {
+  color: var(--text-main);
+  font-weight: 500;
+}
+
+.device-name-placeholder {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.btn-rename {
+  background: transparent;
+  border: 1px solid var(--border-color);
+  color: var(--text-sub);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.72rem;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.btn-rename:hover {
+  background-color: var(--bg-hover);
+  border-color: var(--accent-primary);
+  color: var(--text-main);
+}
+
 /* -------------------------------------------------------------------------
    Empty States
    ------------------------------------------------------------------------- */

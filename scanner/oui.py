@@ -473,6 +473,26 @@ _OUI_DATABASE: dict[str, str] = {
     "AC4E91": "Huawei",
     "D0D04B": "Huawei",
     "E8088B": "Huawei",
+    # Xiaomi
+    "7CBF77": "Xiaomi",
+    "64CC22": "Xiaomi",
+    "7451BA": "Xiaomi",
+    "F0B429": "Xiaomi",
+    "286C07": "Xiaomi",
+    "584498": "Xiaomi",
+    "04CF4B": "Xiaomi",
+    "14F65A": "Xiaomi",
+    "50642B": "Xiaomi",
+    "7811DC": "Xiaomi",
+    "8CBEBE": "Xiaomi",
+    "A43B14": "Xiaomi",
+    "C46BB4": "Xiaomi",
+    "D4970B": "Xiaomi",
+    "F4F5DB": "Xiaomi",
+    # Shenzhen Bilian, Realtek, Virtualization
+    "700894": "Shenzhen Bilian Electronic",
+    "00E04C": "Realtek",
+    "525400": "QEMU / KVM Virtual",
 }
 
 _HEX_CLEAN_RE = re.compile(r"[^0-9A-Fa-f]")
@@ -526,3 +546,21 @@ def get_manufacturer(mac: Optional[str]) -> Optional[str]:
         return None
 
     return _OUI_DATABASE.get(prefix)
+
+
+def is_locally_administered(mac: Optional[str]) -> bool:
+    """
+    Check if a MAC address has the IEEE 802 Locally Administered Address (LAA) bit set.
+
+    In modern mobile operating systems (iOS 14+, Android 10+, Windows 11), Wi-Fi
+    privacy mechanisms randomize the client MAC address. The second hexadecimal
+    character of a randomized MAC address is always 2, 6, A, or E (U/L bit = 1).
+    """
+    if not mac or not isinstance(mac, str):
+        return False
+
+    prefix = normalize_mac_prefix(mac)
+    if prefix and len(prefix) >= 2:
+        return prefix[1] in "26AE"
+
+    return False

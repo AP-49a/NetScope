@@ -253,13 +253,14 @@
         return false;
       }
 
-      // Query match (substring across IP, MAC, hostname, manufacturer)
+      // Query match (substring across IP, MAC, hostname, custom name, manufacturer)
       if (q) {
         const ip = (dev.ip_address || "").toLowerCase();
         const mac = (dev.mac_address || "").toLowerCase();
         const host = (dev.hostname || "").toLowerCase();
+        const custom = (dev.custom_name || "").toLowerCase();
         const vendor = (dev.manufacturer || "").toLowerCase();
-        return ip.includes(q) || mac.includes(q) || host.includes(q) || vendor.includes(q);
+        return ip.includes(q) || mac.includes(q) || host.includes(q) || custom.includes(q) || vendor.includes(q);
       }
 
       return true;
@@ -335,10 +336,27 @@
       tdMac.textContent = dev.mac_address;
       tr.appendChild(tdMac);
 
-      // Hostname
+      // Device Name / Hostname
       const tdHost = document.createElement("td");
-      if (dev.hostname) {
-        tdHost.textContent = dev.hostname;
+      if (dev.custom_name) {
+        tdHost.innerHTML = `
+          <div class="device-name-container">
+            <span class="device-custom-name">${escapeHtml(dev.custom_name)}</span>
+            ${dev.hostname ? `<span class="device-hostname-sub">${escapeHtml(dev.hostname)}</span>` : ""}
+          </div>
+        `;
+      } else if (dev.hostname) {
+        tdHost.innerHTML = `
+          <div class="device-name-container">
+            <span class="device-hostname-main">${escapeHtml(dev.hostname)}</span>
+          </div>
+        `;
+      } else if (dev.manufacturer && dev.manufacturer.includes("Private MAC")) {
+        tdHost.innerHTML = `
+          <div class="device-name-container">
+            <span class="device-name-placeholder">Private Device</span>
+          </div>
+        `;
       } else {
         tdHost.innerHTML = '<span class="text-subtle">Unresolved</span>';
       }
@@ -362,10 +380,49 @@
       }
       tr.appendChild(tdStatus);
 
+      // Action / Rename Button
+      const tdAction = document.createElement("td");
+      tdAction.style.textAlign = "right";
+      const renameBtn = document.createElement("button");
+      renameBtn.className = "btn-rename";
+      renameBtn.title = "Set custom friendly nickname";
+      renameBtn.innerHTML = `<span>✏️</span> <span>Name</span>`;
+      renameBtn.addEventListener("click", () => onRenameClick(dev));
+      tdAction.appendChild(renameBtn);
+      tr.appendChild(tdAction);
+
       fragment.appendChild(tr);
     });
 
     tbody.appendChild(fragment);
+  }
+
+  /**
+   * Prompt user to enter or edit a friendly nickname for a device
+   */
+  async function onRenameClick(dev) {
+    const currentName = dev.custom_name || "";
+    const promptMsg = `Set friendly nickname for device:\nIP: ${dev.ip_address}\nMAC: ${dev.mac_address}\n\nExamples: "My Phone", "Living Room TV", "Home Router"`;
+    const newName = prompt(promptMsg, currentName);
+    if (newName === null) return; // Cancelled
+
+    try {
+      const res = await fetch(`/api/devices/${encodeURIComponent(dev.mac_address)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ custom_name: newName.trim() }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+
+      await loadDevices();
+    } catch (err) {
+      console.error("Rename device error:", err);
+      showAlert(`Failed to update device nickname: ${err.message}`);
+    }
   }
 
   function setScanningState(isScanning) {

@@ -8,6 +8,7 @@ identifies hardware manufacturers via MAC OUI lookups.
 
 from __future__ import annotations
 
+import socket
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -18,7 +19,7 @@ from scapy.all import ARP, Ether, srp  # type: ignore[import-untyped]
 from config import SCAN_TIMEOUT
 from scanner.hostname import resolve_hostname
 from scanner.network import get_network_config
-from scanner.oui import get_manufacturer
+from scanner.oui import get_manufacturer, is_locally_administered
 from utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -41,6 +42,9 @@ class DiscoveredDevice:
 
     hostname: Optional[str] = None
     """Resolved PTR / NetBIOS hostname, or None if unresolvable."""
+
+    custom_name: Optional[str] = None
+    """User-assigned friendly device nickname."""
 
     manufacturer: Optional[str] = None
     """Hardware manufacturer determined from MAC OUI prefix, or None."""
@@ -193,15 +197,30 @@ def scan_network(
 
         # 4. Parse responses
         # answered contains list of tuples: (sent_packet, received_packet)
+        host_cfg = get_network_config()
+
         for _, received in answered:
             ip = str(received[ARP].psrc).strip()
             mac = str(received[ARP].hwsrc).strip().upper()
 
-            # Identify manufacturer via OUI
+            # Identify manufacturer via OUI or detect randomized private MAC
             vendor = get_manufacturer(mac)
+            if not vendor and is_locally_administered(mac):
+                vendor = "Private MAC (Mobile/PC)"
 
             # Optional hostname resolution
             hostname = resolve_hostname(ip, timeout=1.0) if resolve_hostnames else None
+
+            # Enrich device names with known network roles
+            if host_cfg:
+                if host_cfg.gateway and ip == host_cfg.gateway and not hostname:
+                    hostname = "Router (Default Gateway)"
+                elif host_cfg.ip_address and ip == host_cfg.ip_address:
+                    this_host = socket.gethostname()
+                    if not hostname or hostname in ("localhost", this_host):
+                        hostname = f"{this_host} (This PC)"
+                    elif "(This PC)" not in hostname:
+                        hostname = f"{hostname} (This PC)"
 
             device = DiscoveredDevice(
                 ip_address=ip,

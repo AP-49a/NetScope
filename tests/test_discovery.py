@@ -21,7 +21,7 @@ from scapy.all import ARP
 from scanner.discovery import DiscoveredDevice, ScanResult, scan_network
 from scanner.hostname import resolve_hostname
 from scanner.network import NetworkConfig
-from scanner.oui import get_manufacturer, normalize_mac_prefix
+from scanner.oui import get_manufacturer, is_locally_administered, normalize_mac_prefix
 
 
 # ===========================================================================
@@ -71,6 +71,22 @@ class TestOuiLookup:
         assert normalize_mac_prefix("AA-BB-CC-11-22-33") == "AABBCC"
         assert normalize_mac_prefix("123") is None
         assert normalize_mac_prefix("") is None
+
+    @pytest.mark.parametrize(
+        "mac, expected",
+        [
+            ("6A:A6:CB:CB:6D:B0", True),   # 2nd digit 'A' -> Locally administered
+            ("32:36:EA:FD:1C:CE", True),   # 2nd digit '2' -> Locally administered
+            ("E2:3E:4C:8E:14:91", True),   # 2nd digit '2' -> Locally administered
+            ("7C:BF:77:CD:20:F8", False),  # 2nd digit 'C' -> Universally administered (Xiaomi)
+            ("70:08:94:D2:A4:C5", False),  # 2nd digit '0' -> Universally administered
+            ("00:17:F2:12:34:56", False),  # Apple
+            ("", False),
+            (None, False),
+        ],
+    )
+    def test_is_locally_administered(self, mac: str | None, expected: bool) -> None:
+        assert is_locally_administered(mac) is expected
 
 
 # ===========================================================================
