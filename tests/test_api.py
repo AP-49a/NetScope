@@ -143,6 +143,35 @@ class TestStatusAndDevicesEndpoints:
         )
         assert response.status_code == 404
 
+    @patch("api.routes.scan_service.get_devices")
+    def test_export_devices_csv(self, mock_get_devs: MagicMock, client: FlaskClient) -> None:
+        mock_get_devs.return_value = [
+            {
+                "ip_address": "192.168.1.5",
+                "mac_address": "00:11:22:33:44:55",
+                "custom_name": "My Laptop",
+                "hostname": "laptop.local",
+                "manufacturer": "Dell",
+                "first_seen": "2026-11-11T12:00:00Z",
+                "last_seen": "2026-11-11T12:30:00Z",
+                "status": "online",
+            }
+        ]
+        response = client.get("/api/devices/export?format=csv")
+        assert response.status_code == 200
+        assert response.mimetype == "text/csv"
+        assert "Content-Disposition" in response.headers
+        assert b"IP Address,MAC Address" in response.data
+        assert b"192.168.1.5,00:11:22:33:44:55,My Laptop" in response.data
+
+    @patch("api.routes.scan_service.get_devices")
+    def test_export_devices_json(self, mock_get_devs: MagicMock, client: FlaskClient) -> None:
+        mock_get_devs.return_value = [{"ip_address": "192.168.1.5", "mac_address": "00:11:22:33:44:55"}]
+        response = client.get("/api/devices/export?format=json")
+        assert response.status_code == 200
+        assert response.mimetype == "application/json"
+        assert b"192.168.1.5" in response.data
+
 
 # ===========================================================================
 # 4. Scan Initiation Endpoint (POST /api/scan)

@@ -17,7 +17,7 @@ from typing import Any, Optional
 from scapy.all import ARP, Ether, srp  # type: ignore[import-untyped]
 
 from config import SCAN_TIMEOUT
-from scanner.hostname import resolve_hostname
+from scanner.hostname import resolve_hostname, resolve_hostnames_batch
 from scanner.network import get_network_config
 from scanner.oui import get_manufacturer, is_locally_administered
 from utils.logger import get_logger
@@ -199,17 +199,25 @@ def scan_network(
         # answered contains list of tuples: (sent_packet, received_packet)
         host_cfg = get_network_config()
 
-        for _, received in answered:
-            ip = str(received[ARP].psrc).strip()
-            mac = str(received[ARP].hwsrc).strip().upper()
+        raw_pairs = [
+            (str(received[ARP].psrc).strip(), str(received[ARP].hwsrc).strip().upper())
+            for _, received in answered
+        ]
 
+        # Resolve hostnames concurrently in parallel to avoid serializing timeouts
+        hostname_map: dict[str, Optional[str]] = {}
+        if resolve_hostnames and raw_pairs:
+            unique_ips = list({ip for ip, _ in raw_pairs})
+            hostname_map = resolve_hostnames_batch(unique_ips, timeout=1.0)
+
+        for ip, mac in raw_pairs:
             # Identify manufacturer via OUI or detect randomized private MAC
             vendor = get_manufacturer(mac)
             if not vendor and is_locally_administered(mac):
                 vendor = "Private MAC (Mobile/PC)"
 
-            # Optional hostname resolution
-            hostname = resolve_hostname(ip, timeout=1.0) if resolve_hostnames else None
+            # Hostname from concurrent lookup map
+            hostname = hostname_map.get(ip) if resolve_hostnames else None
 
             # Enrich device names with known network roles
             if host_cfg:

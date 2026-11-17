@@ -18,6 +18,8 @@
     searchQuery: "",
     statusFilter: "all",
     pollTimer: null,
+    autoScanTimer: null,
+    autoScanSeconds: 0,
   };
 
   // -------------------------------------------------------------------------
@@ -46,6 +48,7 @@
     scanBtn: document.getElementById("scan-btn"),
     scanSpinner: document.getElementById("scan-spinner"),
     scanBtnText: document.getElementById("scan-btn-text"),
+    autoScanSelect: document.getElementById("auto-scan-select"),
     scanProgressMsg: document.getElementById("scan-progress-msg"),
     statDeviceCount: document.getElementById("stat-device-count"),
     statCidr: document.getElementById("stat-cidr"),
@@ -55,6 +58,7 @@
     searchInput: document.getElementById("search-input"),
     searchClear: document.getElementById("search-clear"),
     statusFilter: document.getElementById("status-filter"),
+    exportCsvBtn: document.getElementById("export-csv-btn"),
 
     // Device Table & States
     devicesTable: document.getElementById("devices-table"),
@@ -78,6 +82,36 @@
     els.searchClear.addEventListener("click", onSearchClear);
     els.statusFilter.addEventListener("change", onStatusFilterChange);
     els.alertDismiss.addEventListener("click", hideAlert);
+    if (els.exportCsvBtn) {
+      els.exportCsvBtn.addEventListener("click", () => {
+        window.location.href = "/api/devices/export?format=csv";
+      });
+    }
+    if (els.autoScanSelect) {
+      els.autoScanSelect.addEventListener("change", onAutoScanChange);
+    }
+  }
+
+  function onAutoScanChange(e) {
+    const secs = parseInt(e.target.value, 10) || 0;
+    state.autoScanSeconds = secs;
+
+    if (state.autoScanTimer) {
+      clearInterval(state.autoScanTimer);
+      state.autoScanTimer = null;
+    }
+
+    if (secs > 0) {
+      const mins = Math.round(secs / 60);
+      els.scanProgressMsg.textContent = `Auto-scan active: every ${mins} min(s).`;
+      state.autoScanTimer = setInterval(() => {
+        if (!state.isScanning) {
+          onScanClick();
+        }
+      }, secs * 1000);
+    } else {
+      els.scanProgressMsg.textContent = "Auto-scan disabled.";
+    }
   }
 
   // -------------------------------------------------------------------------

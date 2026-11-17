@@ -83,6 +83,14 @@
             <span id="scan-spinner" class="spinner hidden"></span>
             <span id="scan-btn-text">Scan Network</span>
           </button>
+
+          <select id="auto-scan-select" class="select-filter" style="width: auto; padding: 0.45rem 0.65rem;" aria-label="Auto-scan schedule interval">
+            <option value="0">Auto-Scan: Off</option>
+            <option value="60">Auto-Scan: Every 1 min</option>
+            <option value="300">Auto-Scan: Every 5 mins</option>
+            <option value="900">Auto-Scan: Every 15 mins</option>
+          </select>
+
           <span id="scan-progress-msg" class="scan-msg">Ready to scan.</span>
         </div>
 
@@ -135,6 +143,10 @@
             <option value="online">Online</option>
             <option value="offline">Offline</option>
           </select>
+
+          <button id="export-csv-btn" class="btn btn-secondary" title="Export device inventory to CSV">
+            <span>📥 Export CSV</span>
+          </button>
         </div>
       </div>
 

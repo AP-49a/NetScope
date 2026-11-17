@@ -8,10 +8,13 @@ and inspecting historical scan sessions.
 
 from __future__ import annotations
 
+import csv
+import io
 import ipaddress
+import json
 from typing import Any
 
-from flask import Blueprint, jsonify, render_template, request
+from flask import Blueprint, Response, jsonify, render_template, request
 
 from database.models import get_scan_history, set_device_custom_name
 from scanner.network import get_network_config
@@ -168,6 +171,60 @@ def get_devices() -> Any:
             }
         ),
         200,
+    )
+
+
+@api_bp.get("/api/devices/export")
+def export_devices() -> Any:
+    """
+    Export all tracked devices as a downloadable CSV or JSON file.
+
+    Supports query parameter ``?format=csv`` (default) or ``?format=json``.
+    """
+    fmt = request.args.get("format", "csv").lower()
+    devices = scan_service.get_devices()
+
+    if fmt == "json":
+        data_str = json.dumps(devices, indent=2)
+        return Response(
+            data_str,
+            mimetype="application/json",
+            headers={"Content-Disposition": "attachment; filename=netscope_devices.json"},
+        )
+
+    # Default: CSV format
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "IP Address",
+            "MAC Address",
+            "Custom Name",
+            "Hostname",
+            "Manufacturer",
+            "First Seen",
+            "Last Seen",
+            "Status",
+        ]
+    )
+    for dev in devices:
+        writer.writerow(
+            [
+                dev.get("ip_address", ""),
+                dev.get("mac_address", ""),
+                dev.get("custom_name", "") or "",
+                dev.get("hostname", "") or "",
+                dev.get("manufacturer", "") or "",
+                dev.get("first_seen", ""),
+                dev.get("last_seen", ""),
+                dev.get("status", ""),
+            ]
+        )
+
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=netscope_devices.csv"},
     )
 
 

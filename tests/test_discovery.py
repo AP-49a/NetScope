@@ -19,7 +19,7 @@ import pytest
 from scapy.all import ARP
 
 from scanner.discovery import DiscoveredDevice, ScanResult, scan_network
-from scanner.hostname import resolve_hostname
+from scanner.hostname import resolve_hostname, resolve_hostnames_batch
 from scanner.network import NetworkConfig
 from scanner.oui import get_manufacturer, is_locally_administered, normalize_mac_prefix
 
@@ -117,6 +117,26 @@ class TestHostnameResolution:
         assert resolve_hostname("") is None
         assert resolve_hostname(None) is None  # type: ignore[arg-type]
 
+    @patch("scanner.hostname.socket.gethostbyaddr")
+    def test_resolve_hostnames_batch(self, mock_gethost: MagicMock) -> None:
+        def fake_lookup(ip: str):
+            if ip == "192.168.1.1":
+                return ("gateway.lan", [], [ip])
+            if ip == "192.168.1.50":
+                return ("printer.lan", [], [ip])
+            raise socket.herror(1, "Unknown")
+
+        mock_gethost.side_effect = fake_lookup
+
+        batch = resolve_hostnames_batch(["192.168.1.1", "192.168.1.50", "192.168.1.99", "127.0.0.1"])
+        assert batch["192.168.1.1"] == "gateway.lan"
+        assert batch["192.168.1.50"] == "printer.lan"
+        assert batch["192.168.1.99"] is None
+        assert batch["127.0.0.1"] == "localhost"
+
+    def test_resolve_hostnames_batch_empty(self) -> None:
+        assert resolve_hostnames_batch([]) == {}
+
 
 # ===========================================================================
 # 3. Data Model Tests
@@ -186,7 +206,7 @@ class TestScanNetwork:
     """Tests for :func:`scanner.discovery.scan_network`."""
 
     @patch("scanner.discovery.srp")
-    @patch("scanner.discovery.resolve_hostname", return_value="nas.local")
+    @patch("scanner.discovery.resolve_hostnames_batch", return_value={"192.168.1.1": "nas.local", "192.168.1.50": "nas.local"})
     def test_successful_scan_with_devices(
         self,
         mock_hostname: MagicMock,

@@ -155,6 +155,19 @@ Retrieves all discovered network devices from the persistent SQLite database.
 
 ---
 
+### `GET /api/devices/export`
+Exports all tracked devices as a downloadable CSV or JSON file.
+
+#### Request
+- **Method:** `GET`
+- **Query Parameters (Optional):**
+  - `format` (*string*): File format, either `"csv"` (default) or `"json"`.
+
+#### Response
+- Returns `text/csv` attachment `netscope_devices.csv` or `application/json` attachment `netscope_devices.json`.
+
+---
+
 ## 5. Scan History
 
 ### `GET /api/history`
